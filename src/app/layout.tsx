@@ -1,29 +1,18 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import React from 'react'
+import { SolanaWalletProvider } from './providers/Providers'
 
 export const metadata: Metadata = {
-  title: 'Saros DLMM Demo',
-  description: 'Built with create-solana-dapp, Next.js, and Saros SDKs',
+  title: 'Viewhub',
+  description: 'Advanced DLMM Position Management Dashboard',
 }
-
-// // Links for the sidebar / navbar
-// const links: { label: string; path: string }[] = [
-//   { label: 'Home', path: '/' },
-//   { label: 'Dashboard', path: '/dashboard' },
-//   { label: 'Backtest', path: '/backtest' },
-//   { label: 'Account', path: '/account' },
-//   { label: 'Basic Program', path: '/basic' },
-// ]
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning className="dark">
       <body className="antialiased">
-        {/* <AppProviders>
-          <AppLayout links={links}>{children}</AppLayout>
-        </AppProviders> */}
-        {children}
+        <SolanaWalletProvider>{children}</SolanaWalletProvider>
       </body>
     </html>
   )
