@@ -1,4 +1,4 @@
-import { UiWalletAccount, useWalletAccountTransactionSendingSigner } from '@wallet-ui/react'
+import { UiWalletAccount, useWalletAccountTransactionSendingSigner } from '@/react'
 import { useSolana } from '@/components/solana/use-solana'
 
 export function useWalletUiSigner() {
