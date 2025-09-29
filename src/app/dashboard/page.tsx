@@ -1,20 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { PositionChart } from '@/components/demo/PositionChart'
-import { DLMMSDKIntegration } from '@/components//demo/DlmmSdkIntegration'
+import { RealDLMMIntegration } from '@/components/demo/DlmmIntegration'
 import { RebalancingEngine } from '@/components/demo/RebalancingEngine'
 import { AdvancedBacktesting } from '@/components/demo/AdvancedBacktesting'
 import { TrendingUp, DollarSign, Zap, RefreshCw, BarChart3, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import Navbar from './navbar'
+import { sarosDLMM, POOL_ID, fetchUserPositions } from '@/components/services/saros' // Your SDK service
 
-// Enhanced mock data with more DLMM-specific information
-const mockPositions = [
+// Demo fallback positions
+const demoPositions = [
   {
     id: '1',
     pair: 'SOL/USDC',
@@ -67,38 +69,33 @@ const mockPositions = [
       price: 0.00002 + i * 0.000003,
     })),
   },
-  {
-    id: '3',
-    pair: 'RAY/USDC',
-    tvl: 28900.25,
-    feesEarned: 890.15,
-    activeBinRange: '1.8-2.2',
-    currentPrice: 2.05,
-    inRange: true,
-    apy: 15.8,
-    liquidity: 18000,
-    volume24h: 78000,
-    binStep: 10,
-    activeBinId: 8388650,
-    priceHistory: [
-      { time: '00:00', price: 1.95 },
-      { time: '04:00', price: 2.02 },
-      { time: '08:00', price: 2.08 },
-      { time: '12:00', price: 2.03 },
-      { time: '16:00', price: 2.05 },
-    ],
-    binDistribution: Array.from({ length: 10 }, (_, i) => ({
-      binId: 8388645 + i,
-      liquidity: Math.random() * 8000 + 800,
-      price: 1.6 + i * 0.08,
-    })),
-  },
 ]
 
 export default function DashboardPage() {
-  const [positions, setPositions] = useState(mockPositions)
+  const { connected, publicKey } = useWallet()
+  const [positions, setPositions] = useState(demoPositions)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState(positions[0])
+
+  useEffect(() => {
+    if (!connected || !publicKey) return
+
+    const loadPositions = async () => {
+      setIsLoading(true)
+      try {
+        const sdkPositions = await fetchUserPositions(publicKey)
+        setPositions(sdkPositions.length > 0 ? sdkPositions : demoPositions)
+        setSelectedPosition((sdkPositions.length > 0 ? sdkPositions : demoPositions)[0])
+      } catch (err) {
+        console.error('Error fetching SDK positions, using demo', err)
+        setPositions(demoPositions)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadPositions()
+  }, [connected, publicKey])
 
   const totalTVL = positions.reduce((sum, pos) => sum + pos.tvl, 0)
   const totalFees = positions.reduce((sum, pos) => sum + pos.feesEarned, 0)
@@ -109,15 +106,60 @@ export default function DashboardPage() {
     setTimeout(() => setIsLoading(false), 1000)
   }
 
+  if (!connected) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Wallet className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle>Connect Your Wallet</CardTitle>
+            <p className="text-muted-foreground">Connect your Solana wallet to access the DLMM Position Dashboard</p>
+          </CardHeader>
+          <CardContent className="text-center">
+            <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !rounded-md" />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-background px-3">
-      <Navbar handleRefresh={handleRefresh} isLoading={isLoading} />
+    <div className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="border-b border-border/40 backdrop-blur-sm bg-background/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <Zap className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="text-xl font-bold">Saros DLMM</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={handleRefresh} disabled={isLoading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                {publicKey?.toString().slice(0, 4)}...{publicKey?.toString().slice(-4)}
+              </Badge>
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !rounded-md !text-sm" />
+            </div>
+          </div>
+        </div>
+      </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">DLMM Position Dashboard</h1>
-          <p className="text-muted-foreground">Monitor and manage your dynamic liquidity positions</p>
+          <p className="text-muted-foreground">Monitor and manage your dynamic liquidity positions on Saros Finance</p>
         </div>
+
+        {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -128,8 +170,7 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">${totalTVL.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-600 flex items-center">
-                  <ArrowUpRight className="w-3 h-3 mr-1" />
-                  +12.5% from last week
+                  <ArrowUpRight className="w-3 h-3 mr-1" /> +12.5% from last week
                 </span>
               </p>
             </CardContent>
@@ -144,8 +185,7 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">${totalFees.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-600 flex items-center">
-                  <ArrowUpRight className="w-3 h-3 mr-1" />
-                  +8.2% from last week
+                  <ArrowUpRight className="w-3 h-3 mr-1" /> +8.2% from last week
                 </span>
               </p>
             </CardContent>
@@ -160,8 +200,7 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">{avgAPY.toFixed(1)}%</div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-red-600 flex items-center">
-                  <ArrowDownRight className="w-3 h-3 mr-1" />
-                  -2.1% from last week
+                  <ArrowDownRight className="w-3 h-3 mr-1" /> -2.1% from last week
                 </span>
               </p>
             </CardContent>
@@ -182,14 +221,18 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* Tabs */}
         <Tabs defaultValue="positions" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="positions">Positions</TabsTrigger>
             <TabsTrigger value="rebalancing">Rebalancing</TabsTrigger>
             <TabsTrigger value="backtesting">Backtesting</TabsTrigger>
           </TabsList>
+
+          {/* Positions */}
           <TabsContent value="positions" className="space-y-6">
-            <DLMMSDKIntegration walletAddress="7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU" />
+            <RealDLMMIntegration positions={positions} poolId={POOL_ID} />
+
             <PositionChart
               pair={selectedPosition.pair}
               currentPrice={selectedPosition.currentPrice}
@@ -197,6 +240,7 @@ export default function DashboardPage() {
               priceHistory={selectedPosition.priceHistory}
               binDistribution={selectedPosition.binDistribution}
             />
+
             <div className="grid gap-6">
               {positions.map((position) => (
                 <Card
@@ -207,18 +251,18 @@ export default function DashboardPage() {
                   onClick={() => setSelectedPosition(position)}
                 >
                   <CardHeader>
-                    <div className="flex flex-col md:flex-row justify-between">
-                      <div className="flex items-center text-center justify-center space-x-1 md:space-x-3">
-                        <CardTitle className="text-left text-[13px] md:text-xl">{position.pair}</CardTitle>
-                        <Badge className="text-xs" variant={position.inRange ? 'default' : 'destructive'}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <CardTitle className="text-xl">{position.pair}</CardTitle>
+                        <Badge variant={position.inRange ? 'default' : 'destructive'}>
                           {position.inRange ? 'In Range' : 'Out of Range'}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px] font-mono">
+                        <Badge variant="outline" className="text-xs font-mono">
                           Bin {position.activeBinId}
                         </Badge>
                       </div>
-                      <div className="justify-start md:text-right flex items-center space-x-2 pt-2">
-                        <div className="text-md md:text-2xl font-bold">${position.tvl.toLocaleString()}</div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold">${position.tvl.toLocaleString()}</div>
                         <div className="text-sm text-muted-foreground">TVL</div>
                       </div>
                     </div>
@@ -248,6 +292,7 @@ export default function DashboardPage() {
                         <div className="text-lg font-semibold">{position.binStep} bps</div>
                       </div>
                     </div>
+
                     <div className="mt-4">
                       <div className="flex justify-between text-sm text-muted-foreground mb-2">
                         <span>Price Range</span>
@@ -261,14 +306,18 @@ export default function DashboardPage() {
             </div>
           </TabsContent>
 
+          {/* Rebalancing */}
           <TabsContent value="rebalancing" className="space-y-6">
             <RebalancingEngine
               positions={positions}
               onRebalance={(positionId, recommendation) => {
                 console.log(`Rebalancing position ${positionId} with strategy: ${recommendation.strategy}`)
+                // Here you could integrate SDK for live rebalance
               }}
             />
           </TabsContent>
+
+          {/* Backtesting */}
           <TabsContent value="backtesting" className="space-y-6">
             <AdvancedBacktesting pair={selectedPosition.pair} initialCapital={selectedPosition.tvl} />
           </TabsContent>

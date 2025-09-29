@@ -1,21 +1,18 @@
 'use client'
-
-import { useState } from 'react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ArrowRight, Wallet, TrendingUp, BarChart3, Zap } from 'lucide-react'
+import { ArrowRight, TrendingUp, BarChart3, Zap } from 'lucide-react'
 import Link from 'next/link'
 
 export default function HomePage() {
-  const [isConnected, setIsConnected] = useState(false)
-
-  const handleConnectWallet = () => {
-    setIsConnected(true)
-  }
+  const { connected, publicKey } = useWallet()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      {/* Navigation */}
       <nav className="border-b border-border/40 backdrop-blur-sm bg-background/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -23,29 +20,27 @@ export default function HomePage() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Viewhub</span>
+              <span className="text-xl font-bold">Saros DLMM</span>
             </div>
             <div className="flex items-center space-x-4">
-              {isConnected ? (
+              {connected ? (
                 <>
                   <Link href="/dashboard">
                     <Button variant="ghost">Dashboard</Button>
                   </Link>
                   <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
-                    Connected
+                    {publicKey?.toString().slice(0, 4)}...{publicKey?.toString().slice(-4)}
                   </Badge>
                 </>
-              ) : (
-                <Button onClick={handleConnectWallet} className="bg-primary hover:bg-primary/90">
-                  <Wallet className="w-4 h-4 mr-2" />
-                  Connect Wallet
-                </Button>
-              )}
+              ) : null}
+              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !rounded-md" />
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Hero Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
           <Badge variant="secondary" className="mb-6 bg-primary/10 text-primary border-primary/20">
@@ -59,7 +54,7 @@ export default function HomePage() {
             Real-time position tracking, automated rebalancing suggestions, and backtesting tools for sophisticated DeFi
             liquidity providers.
           </p>
-          {isConnected ? (
+          {connected ? (
             <Link href="/dashboard">
               <Button size="lg" className="bg-primary hover:bg-primary/90">
                 Open Dashboard
@@ -67,12 +62,11 @@ export default function HomePage() {
               </Button>
             </Link>
           ) : (
-            <Button size="lg" onClick={handleConnectWallet} className="bg-primary hover:bg-primary/90">
-              <Wallet className="w-4 h-4 mr-2" />
-              Connect Wallet to Start
-            </Button>
+            <div className="text-muted-foreground">Connect your wallet to access the dashboard</div>
           )}
         </div>
+
+        {/* Feature Cards */}
         <div className="grid md:grid-cols-3 gap-8 mt-20">
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
             <CardHeader>
