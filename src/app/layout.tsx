@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import React from 'react'
-import { Analytics } from '@vercel/analytics/next'
+import React, { Suspense } from 'react'
 import { WalletProvider } from '../components/demo/WalletProvider'
-import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'Viewhub',
@@ -12,12 +10,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
+    <html lang="en">
       <body>
         <Suspense fallback={<div>Loading...</div>}>
           <WalletProvider>{children}</WalletProvider>
         </Suspense>
-        <Analytics />
       </body>
     </html>
   )

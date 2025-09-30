@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,10 +12,12 @@ import { RealDLMMIntegration } from '@/components/demo/DlmmIntegration'
 import { RebalancingEngine } from '@/components/demo/RebalancingEngine'
 import { AdvancedBacktesting } from '@/components/demo/AdvancedBacktesting'
 import { TrendingUp, DollarSign, Zap, RefreshCw, BarChart3, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-import { sarosDLMM, POOL_ID, fetchUserPositions } from '@/components/services/saros' // Your SDK service
+import { POOL_ID, fetchPoolInfo } from '@/components/services/saros'
+import type { Position } from '../../types/position'
+import { WalletButton } from '@/components/demo/WalletButton'
 
 // Demo fallback positions
-const demoPositions = [
+const demoPositions: Position[] = [
   {
     id: '1',
     pair: 'SOL/USDC',
@@ -73,52 +74,61 @@ const demoPositions = [
 
 export default function DashboardPage() {
   const { connected, publicKey } = useWallet()
-  const [positions, setPositions] = useState(demoPositions)
+  const [positions, setPositions] = useState<Position[]>(demoPositions)
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedPosition, setSelectedPosition] = useState(positions[0])
+  const [selectedPosition, setSelectedPosition] = useState<Position>(demoPositions[0])
+  const [poolInfo, setPoolInfo] = useState<any>(null)
+  const [poolLoading, setPoolLoading] = useState(false)
 
+  // Fetch pool info (always, wallet optional)
   useEffect(() => {
-    if (!connected || !publicKey) return
-
-    const loadPositions = async () => {
-      setIsLoading(true)
+    const loadPoolInfo = async () => {
+      setPoolLoading(true)
       try {
-        const sdkPositions = await fetchUserPositions(publicKey)
-        setPositions(sdkPositions.length > 0 ? sdkPositions : demoPositions)
-        setSelectedPosition((sdkPositions.length > 0 ? sdkPositions : demoPositions)[0])
+        const pool = await fetchPoolInfo(POOL_ID, publicKey ?? undefined)
+        setPoolInfo(pool)
       } catch (err) {
-        console.error('Error fetching SDK positions, using demo', err)
-        setPositions(demoPositions)
+        console.error('Error fetching pool info', err)
+        setPoolInfo(null)
       } finally {
-        setIsLoading(false)
+        setPoolLoading(false)
       }
     }
-
-    loadPositions()
-  }, [connected, publicKey])
+    loadPoolInfo()
+  }, [publicKey])
 
   const totalTVL = positions.reduce((sum, pos) => sum + pos.tvl, 0)
   const totalFees = positions.reduce((sum, pos) => sum + pos.feesEarned, 0)
-  const avgAPY = positions.reduce((sum, pos) => sum + pos.apy, 0) / positions.length
+  const avgAPY = positions.length > 0 ? positions.reduce((sum, pos) => sum + pos.apy, 0) / positions.length : 0
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsLoading(true)
-    setTimeout(() => setIsLoading(false), 1000)
+    try {
+      // Optionally reload positions from your API if you implement fetchPositions
+      setPositions(demoPositions)
+      setSelectedPosition(demoPositions[0])
+    } catch (err) {
+      console.error('Error refreshing positions', err)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (!connected) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Wallet className="w-8 h-8 text-primary" />
             </div>
             <CardTitle>Connect Your Wallet</CardTitle>
-            <p className="text-muted-foreground">Connect your Solana wallet to access the DLMM Position Dashboard</p>
+            <p className="text-muted-foreground text-sm">
+              Connect your Solana wallet to access the DLMM Position Dashboard
+            </p>
           </CardHeader>
           <CardContent className="text-center">
-            <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !rounded-md" />
+            <WalletButton />
           </CardContent>
         </Card>
       </div>
@@ -135,104 +145,48 @@ export default function DashboardPage() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Saros DLMM</span>
+              <span className="text-lg sm:text-xl font-bold">Viewhub</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={handleRefresh} disabled={isLoading}>
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <Button variant="ghost" onClick={handleRefresh} disabled={isLoading} className="text-sm sm:text-base">
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+              <Badge
+                variant="secondary"
+                className="hidden sm:flex bg-green-500/10 text-green-600 border-green-500/20 items-center"
+              >
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
-                {publicKey?.toString().slice(0, 4)}...{publicKey?.toString().slice(-4)}
+                {publicKey?.toString().slice(0, 4)}...
+                {publicKey?.toString().slice(-4)}
               </Badge>
-              <WalletMultiButton className="!bg-primary hover:!bg-primary/90 !rounded-md !text-sm" />
+              <WalletButton />
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">DLMM Position Dashboard</h1>
-          <p className="text-muted-foreground">Monitor and manage your dynamic liquidity positions on Saros Finance</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">DLMM Position Dashboard</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Monitor and manage your dynamic liquidity positions on Saros Finance
+          </p>
         </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total TVL</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalTVL.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-green-600 flex items-center">
-                  <ArrowUpRight className="w-3 h-3 mr-1" /> +12.5% from last week
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Fees Earned</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalFees.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-green-600 flex items-center">
-                  <ArrowUpRight className="w-3 h-3 mr-1" /> +8.2% from last week
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average APY</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{avgAPY.toFixed(1)}%</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-red-600 flex items-center">
-                  <ArrowDownRight className="w-3 h-3 mr-1" /> -2.1% from last week
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Positions</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{positions.length}</div>
-              <p className="text-sm text-muted-foreground">
-                {positions.filter((p) => p.inRange).length} in range, {positions.filter((p) => !p.inRange).length} out
-                of range
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Overview */}
+        <RealDLMMIntegration positions={positions} poolId={POOL_ID} />
 
         {/* Tabs */}
         <Tabs defaultValue="positions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm">
             <TabsTrigger value="positions">Positions</TabsTrigger>
             <TabsTrigger value="rebalancing">Rebalancing</TabsTrigger>
             <TabsTrigger value="backtesting">Backtesting</TabsTrigger>
           </TabsList>
 
-          {/* Positions */}
           <TabsContent value="positions" className="space-y-6">
-            <RealDLMMIntegration positions={positions} poolId={POOL_ID} />
-
             <PositionChart
               pair={selectedPosition.pair}
               currentPrice={selectedPosition.currentPrice}
@@ -241,7 +195,7 @@ export default function DashboardPage() {
               binDistribution={selectedPosition.binDistribution}
             />
 
-            <div className="grid gap-6">
+            <div className="grid gap-4 sm:gap-6">
               {positions.map((position) => (
                 <Card
                   key={position.id}
@@ -251,9 +205,9 @@ export default function DashboardPage() {
                   onClick={() => setSelectedPosition(position)}
                 >
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <CardTitle className="text-xl">{position.pair}</CardTitle>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <CardTitle className="text-base sm:text-xl">{position.pair}</CardTitle>
                         <Badge variant={position.inRange ? 'default' : 'destructive'}>
                           {position.inRange ? 'In Range' : 'Out of Range'}
                         </Badge>
@@ -262,39 +216,39 @@ export default function DashboardPage() {
                         </Badge>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold">${position.tvl.toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">TVL</div>
+                        <div className="text-lg sm:text-2xl font-bold">${position.tvl.toLocaleString()}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">TVL</div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div>
-                        <div className="text-sm text-muted-foreground">Fees Earned</div>
-                        <div className="text-lg font-semibold text-green-600">
+                        <div className="text-xs sm:text-sm text-muted-foreground">Fees Earned</div>
+                        <div className="text-sm sm:text-lg font-semibold text-green-600">
                           ${position.feesEarned.toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">Active Range</div>
-                        <div className="text-lg font-semibold font-mono">{position.activeBinRange}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">Active Range</div>
+                        <div className="text-sm sm:text-lg font-semibold font-mono">{position.activeBinRange}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">Current Price</div>
-                        <div className="text-lg font-semibold">{position.currentPrice}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">Current Price</div>
+                        <div className="text-sm sm:text-lg font-semibold">{position.currentPrice}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">APY</div>
-                        <div className="text-lg font-semibold">{position.apy}%</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">APY</div>
+                        <div className="text-sm sm:text-lg font-semibold">{position.apy}%</div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">Bin Step</div>
-                        <div className="text-lg font-semibold">{position.binStep} bps</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">Bin Step</div>
+                        <div className="text-sm sm:text-lg font-semibold">{position.binStep} bps</div>
                       </div>
                     </div>
 
                     <div className="mt-4">
-                      <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                      <div className="flex justify-between text-xs sm:text-sm text-muted-foreground mb-2">
                         <span>Price Range</span>
                         <span>{position.inRange ? 'Active' : 'Needs Rebalancing'}</span>
                       </div>
@@ -306,18 +260,15 @@ export default function DashboardPage() {
             </div>
           </TabsContent>
 
-          {/* Rebalancing */}
           <TabsContent value="rebalancing" className="space-y-6">
             <RebalancingEngine
               positions={positions}
               onRebalance={(positionId, recommendation) => {
                 console.log(`Rebalancing position ${positionId} with strategy: ${recommendation.strategy}`)
-                // Here you could integrate SDK for live rebalance
               }}
             />
           </TabsContent>
 
-          {/* Backtesting */}
           <TabsContent value="backtesting" className="space-y-6">
             <AdvancedBacktesting pair={selectedPosition.pair} initialCapital={selectedPosition.tvl} />
           </TabsContent>

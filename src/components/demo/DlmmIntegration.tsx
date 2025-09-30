@@ -1,24 +1,40 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { sarosDLMM, POOL_ID } from '@/components/services/saros'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { POOL_ID, fetchPoolInfo } from '@/components/services/saros'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 
+interface PositionData {
+  /* ...same as before... */
+}
+
 interface RealDLMMIntegrationProps {
-  positions?: any[]
-  poolId?: any
+  positions?: PositionData[]
+  poolId?: string
+}
+
+interface PoolInfo {
+  token_x_symbol: string
+  token_y_symbol: string
+  current_price: number
+  total_liquidity: number
+  volume_24h: number
+  active_bins: any[]
 }
 
 export function RealDLMMIntegration({ positions = [], poolId = POOL_ID }: RealDLMMIntegrationProps) {
-  const [poolInfo, setPoolInfo] = useState<any>(null)
+  const { publicKey } = useWallet()
+  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const fetchPoolData = async () => {
       setLoading(true)
       try {
-        const pool = await sarosDLMM.getPoolInfo(poolId)
+        // Fetch pool info without requiring wallet
+        const pool: PoolInfo | null = await fetchPoolInfo(poolId)
         setPoolInfo(pool)
       } catch (err) {
         console.error('[DLMM Integration] Error fetching pool info:', err)
@@ -31,7 +47,6 @@ export function RealDLMMIntegration({ positions = [], poolId = POOL_ID }: RealDL
   }, [poolId])
 
   if (loading) return <div>Loading pool info...</div>
-
   if (!poolInfo) return <div>No pool info available</div>
 
   return (
@@ -44,33 +59,32 @@ export function RealDLMMIntegration({ positions = [], poolId = POOL_ID }: RealDL
           <div>
             <div className="text-sm text-muted-foreground">Token Pair</div>
             <div className="text-lg font-semibold">
-              {poolInfo.tokenX.symbol}/{poolInfo.tokenY.symbol}
+              {poolInfo.token_x_symbol}/{poolInfo.token_y_symbol}
             </div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Current Price</div>
-            <div className="text-lg font-semibold">{poolInfo.currentPrice ?? 0}</div>
+            <div className="text-lg font-semibold">{poolInfo.current_price ?? 0}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">24h Volume</div>
-            <div className="text-lg font-semibold">${poolInfo.volume24h?.toLocaleString() ?? 0}</div>
+            <div className="text-lg font-semibold">${poolInfo.volume_24h?.toLocaleString() ?? 0}</div>
           </div>
           <div>
             <div className="text-sm text-muted-foreground">Active Bins</div>
-            <div className="text-lg font-semibold">{poolInfo.activeBins?.length ?? 0}</div>
+            <div className="text-lg font-semibold">{poolInfo.active_bins?.length ?? 0}</div>
           </div>
         </div>
 
-        {/* Optional: visual representation of pool liquidity */}
-        {poolInfo.totalLiquidity && (
+        {poolInfo.total_liquidity && (
           <div>
             <div className="text-sm text-muted-foreground mb-1">Total Liquidity</div>
-            <Progress value={Math.min(100, (poolInfo.totalLiquidity / 1000000) * 100)} className="h-2" />
+            <Progress value={Math.min(100, (poolInfo.total_liquidity / 1000000) * 100)} className="h-2" />
           </div>
         )}
 
-        {/* Optional: show positions count */}
-        {positions.length > 0 && (
+        {/* Show user positions only if wallet is connected */}
+        {publicKey && positions.length > 0 && (
           <div className="text-sm text-muted-foreground">
             Connected wallet has {positions.length} position{positions.length > 1 ? 's' : ''}
           </div>

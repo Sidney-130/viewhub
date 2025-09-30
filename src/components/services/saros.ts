@@ -1,49 +1,74 @@
 'use client'
 
-import { LiquidityBookServices, MODE } from '@saros-finance/dlmm-sdk'
-import { Connection, PublicKey } from '@solana/web3.js'
-
-// DLMM service singleton
-export const sarosDLMM = new LiquidityBookServices({
-  mode: MODE.DEVNET,
-  options: {
-    rpcUrl: 'https://api.devnet.solana.com', // you can use helius rpc if you prefer
-  },
-})
+import { PublicKey } from '@solana/web3.js'
 
 // Your devnet pool id (PYUSD / WSOL)
-export const POOL_ID = new PublicKey('H9EPqQKCvv9ddzK6KHjo8vvUPMLMJXmMmru9KUYNaDFQ')
+export const POOL_ID = 'H9EPqQKCvv9ddzK6KHjo8vvUPMLMJXmMmru9KUYNaDFQ'
 
-// Fetch user positions directly from SDK
-export async function fetchUserPositions(owner: PublicKey) {
+// Define proper types
+interface PositionData {
+  /* same as before */
+}
+
+interface PoolPositionResponse {
+  data: Array<{
+    pair_id: string
+    pair_name: string
+    total_liquidity: number
+    total_x_amount: number
+    total_y_amount: number
+    current_price: number
+    fees_earned: number
+    apy: number
+    volume_24h: number
+    bin_step: number
+    active_bin_id: number
+    lower_bin_id: number
+    upper_bin_id: number
+    in_range: boolean
+    token_x_symbol: string
+    token_y_symbol: string
+  }>
+  total: number
+  page_num: number
+  page_size: number
+}
+
+// Fetch pool info (user_id optional)
+export async function fetchPoolInfo(poolId: string = POOL_ID, owner?: PublicKey) {
   try {
-    const connection: Connection = sarosDLMM.connection
-    if (!connection) throw new Error('No connection available')
+    const params: any = {
+      page_num: '1',
+      page_size: '100',
+      pair_id: poolId,
+    }
 
-    // Pool info
-    const pool = await sarosDLMM.getPoolInfo(POOL_ID)
+    if (owner) {
+      params.user_id = owner.toBase58()
+    }
 
-    // Positions by owner
-    const positions = await sarosDLMM.getPositionsByOwner(POOL_ID, owner)
+    const response = await fetch(`/api/pool-position?${new URLSearchParams(params)}`)
 
-    return positions.map((p: any) => ({
-      id: p.publicKey.toBase58(),
-      pair: `${pool.tokenX.symbol}/${pool.tokenY.symbol}`,
-      tvl: Number(p.totalUsdValue ?? 0),
-      feesEarned: Number(p.feesEarned?.usdValue ?? 0),
-      activeBinRange: `${p.binRange?.min ?? 0}-${p.binRange?.max ?? 0}`,
-      currentPrice: Number(pool.currentPrice ?? 0),
-      inRange: p.inRange ?? false,
-      apy: Number(p.apy ?? 0),
-      liquidity: Number(p.liquidity ?? 0),
-      volume24h: Number(pool.volume24h ?? 0),
-      binStep: Number(p.binStep ?? 0),
-      activeBinId: Number(p.activeBinId ?? 0),
-      priceHistory: [], // optional: you can plug in a chart API later
-      binDistribution: [], // optional: could map from pool bins
-    }))
+    if (!response.ok) {
+      throw new Error('Failed to fetch pool info')
+    }
+
+    const result: PoolPositionResponse = await response.json()
+    if (!result.data || result.data.length === 0) return null
+
+    const pool = result.data[0]
+
+    // Map to expected poolInfo structure
+    return {
+      token_x_symbol: pool.token_x_symbol,
+      token_y_symbol: pool.token_y_symbol,
+      current_price: pool.current_price,
+      total_liquidity: pool.total_liquidity,
+      volume_24h: pool.volume_24h,
+      active_bins: [], // optional
+    }
   } catch (err) {
-    console.error('[DLMM Service] fetchUserPositions error:', err)
-    return []
+    console.error('[API] fetchPoolInfo error:', err)
+    return null
   }
 }
